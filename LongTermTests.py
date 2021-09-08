@@ -1,3 +1,4 @@
+import sys
 import numpy as np # linear algebra
 import pandas as pd # data processing, CSV file I/O (e.g. pd.read_csv)
 
@@ -17,11 +18,12 @@ def LT_tests(df):
         if df.hm0[i]<(wvhgt_mean-(N*wvhgt_sd)) or df.hm0[i]>(wvhgt_mean+(N*wvhgt_sd)):
             j=4
             t15=1
-	else:
+        else:
             j=1
-    #test 19
-    #hm0,tm02,mdir
-    minwh = 0 
+    
+        #test 19
+        #hm0,tm02,mdir
+        minwh = 0 
         maxwh = 30 #look for climatological ranges - east/west??
         minwp = 0
         maxwp = 18 #This is a guess, not sure what the largest wave period should be
@@ -37,19 +39,19 @@ def LT_tests(df):
         elif wvpd_min <minwp or wvpd_max > maxwp or wvdir_min < minwd or maxwd >360:
             j = 3
             t19 = 1   
-	#test 20
-  #spike test
-  #hm0
-        delta = 3
+	
+        #test 20
+        #spike test
+        #hm0
+        delta = 3#*df.hm0.std()
         if i==len(df)-1:
             break
-        #diff = abs(df.hm0[i]-df.hm0[i+1])
         if abs(df.hm0[i]-df.hm0[i+1])>=delta:
             j=4
             t20=1
-  #test 16
-  #flatline test
-  #hm0
+        #test 16
+        #flatline test
+        #hm0
         epsilon = 0.001
         if i == len(df)-5:
             break
@@ -66,3 +68,21 @@ def LT_tests(df):
         results_df = pd.DataFrame(results, columns=["time", "hm0","tm02","mdir","flag","test_15","test_16","test_19","test_20"])
         results_df.to_csv('QC.csv', index=False)
     print(results_df)
+
+
+if __name__ == "__main__":
+    if len(sys.argv) == 2:
+        datafile = sys.argv[1]
+        print("Performing QC on : ", datafile)
+    else:
+        print("No file found")
+        sys.exit(1)
+
+    try:
+        df = pd.read_csv(datafile)
+    except FileNotFoundError:
+        msg = "File {} not found?".format(datafile)
+        raise FileNotFoundError(msg)
+
+    LT_tests(df)
+
