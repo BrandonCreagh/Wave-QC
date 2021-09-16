@@ -29,7 +29,7 @@ def test_11(data, IMIN=-2000, IMAX=2000, LMIN=-1050, LMAX=1050):
     NOTE: 
     * Default local limits are based on past 2 years of M6 data 
         from new buoy - maximum Hmax is ~21m.
-    * Defauly instrument limits based on Datawell Heave range
+    * Default instrument limits based on Datawell Heave range
         -20m to +20m
     """
     results = []
