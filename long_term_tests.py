@@ -5,11 +5,7 @@ Implementation of relevant Long Term Tests defined in QARTOD manual
 More information: https://ioos.noaa.gov/project/qartod/
 
 TODO:
-- Tests 17, 19, 20 refactor into separate functions
-- Develop metadata file containing station/variable specific parameters
-    (max/min etc)
-- Inter-parameter dependencies: ex if hm0 fails test 19, tm02 and mdir
-    are also meant to fail
+- Need to add tests 17? Add parameters for test 17 to metadata file?
 - Air pressure, SST tests?
 """
 import sys
@@ -107,6 +103,70 @@ class LongTerm(object):
         result[fail] = 4
         return result
 
+    @classmethod
+    def test_feasible_range(cls, data, min_value, max_value, critical=False):
+        """
+        LT Test 19 checks that data fits into a range defined by the
+            user. This range is defined in the metadata file for each
+            station and for each parameter.
+
+        Arguments:
+        - data: series from dataframe, with data which failed
+            previous QC runs masked out.
+        - min_value: numeric, feasible min value, values less than
+             this fail QC
+        - max_value: numeric, feasible max value, values greater than
+             this fail QC
+        - critical: flag which if true sets values outside the range to
+             fail QC, and if false, sets values outside range to suspect.
+             See QARTOD manual on in-Situ wave observations, test 19 for
+             more information.
+
+        Returns:
+        - results: numpy array of 0 (values within feasible range), 3 (values
+            outside feasible range but test not critical parameter), 4 (values
+            outside feasible range and critical for this parameter).
+        """
+        # Calculate failure mask - where data value is less than minimum
+        #  value or data value is greater than maximum value
+        fail = (data < min_value) | (data > max_value)
+
+        # Initialise all data as passing
+        result = np.full(data.shape, 0)
+
+        # Set values which fail check to failing (if critical) or suspect
+        if critical:
+            result[fail] = 4
+        else:
+            result[fail] = 3
+        return result
+
+    @classmethod
+    def test_rate_of_change(cls, data, delta=3):
+        """
+        LT Test 20 checks if the 1 timestep rate of change exceeds a
+            threshold value, delta.
+
+        Arguments:
+        - data: series from dataframe, with data which failed
+            previous QC runs masked out.
+        - delta: the rate of change acceptable within 1 timestep. This
+            should be defined considering the parameter and the frequency
+            of data.
+
+        Returns:
+        - numpy array of 0 (rate of change less than delta) or 4 (rate
+            of change greater than or equal to delta).
+        """
+        # Calculate mask of data failing test, data.diff calculates the
+        #   difference between value data[i] and data[i-1].
+        fail = abs(data.diff()) >= delta
+        # Initialise all data as passing
+        result = np.full(data.shape, 0)
+        # Set values which fail check to 4
+        result[fail] = 4
+        return result
+        
     def LT_tests(df, param):
         """
         Main Long Term Tests function
@@ -156,7 +216,7 @@ class LongTerm(object):
         results_df.set_index(df.index.name, inplace=True)
         return results_df
 
-    def run(self, df, params):
+    def run(self, df, params, station_metadata):
         """
         Control for QC on params in self.df
         returns detailed QC report for file and summary of qc'd data
@@ -173,14 +233,22 @@ class LongTerm(object):
         # 3. Coalesce QC into 1 flag per value:
         #       8 = missing, 4 = fail, 3 = suspect, 0 = pass
         for param in params:
+            # Read metadata for this param
+            param_meta_cols = [x for x in station_metadata.index if param in x]
+            if len(param_meta_cols) > 0:
+                param_meta = station_metadata[param_meta_cols]
+            else:
+                param_meta = None
+
             # 1. Mask data from archive which failed QC
             if param + '_qc' in df.columns:
                 failed_qc = df[param+'_qc'] > 3
             else:
                 failed_qc = np.full(df[param].shape, False)         
             data = df[param][~failed_qc]
+
             # 2. Initialise new columns to fail
-            tests = ['missing', '15', '16']#, '19', '20']
+            tests = ['missing', '15', '16', '19', '20']
             param_test_cols = [param + '_' + x for x in tests]
             for col in param_test_cols:
                 report[col] = np.full(df.index.shape, 0)
@@ -194,12 +262,36 @@ class LongTerm(object):
             # 2.3 test 16
             report[param + '_16'][~failed_qc] = LongTerm.test_flatline(data)
 
-            # 2.4 test 19...
+            # 2.4 test 19
+            t19_meta = [param + '_min', param + '_max', param + '_critical']
+            if sum([1 for x in t19_meta if x in param_meta_cols]) == 3:
+                min_meta = param_meta[t19_meta[0]]
+                max_meta = param_meta[t19_meta[1]]
+                critical_meta = param_meta[t19_meta[2]]
+                report[param + '_19'][~failed_qc] = LongTerm.test_feasible_range(
+                    data, min_meta, max_meta, critical_meta)
+            else:
+                print("Insufficient metadata to run test 19 on {}".format(param))
+                report[param + '_19'][~failed_qc] = 0
 
-            # 2.5 test 20...
+            # 2.5 test 20
+            t20_meta = param + '_roc'
+            if t20_meta in param_meta_cols:
+                delta_meta = param_meta[t20_meta]
+                report[param + '_20'][~failed_qc] = LongTerm.test_rate_of_change(
+                    data, delta_meta)
+            else:
+                print("Insufficient metadata to run test 20 on {}".format(param))
+                report[param + '_20'][~failed_qc] = 0
 
             # Coalesce QC results for this parameter
             report[param + '_qc'] = report[param_test_cols].max(axis=1)
+
+        # If hm0 fails test 19, both mdir and tm02 are flagged as failing QC
+        report['mdir_qc'][report['hm0_19'] == 4] = 4
+        report['tm02_qc'][report['hm0_19'] == 4] = 4
+
+        # Create summary report with only raw data and overal QC flag
         report_clean = report[clean_cols]
         return report, report_clean
 
