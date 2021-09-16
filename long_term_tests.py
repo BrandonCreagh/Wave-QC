@@ -164,7 +164,8 @@ class LongTerm(object):
         clean_cols = params + [x+'_qc' for x in params]
         print("{} new records".format(len(self.new_inds)))
         # Copy data and archive flags from df
-        report = df[clean_cols]
+        report = df[params]
+        
 
         # For each param:
         # 1. Mask data from archive which failed QC
@@ -173,9 +174,11 @@ class LongTerm(object):
         #       8 = missing, 4 = fail, 3 = suspect, 0 = pass
         for param in params:
             # 1. Mask data from archive which failed QC
-            failed_qc = df[param+'_qc'] > 3
+            if param + '_qc' in df.columns:
+                failed_qc = df[param+'_qc'] > 3
+            else:
+                failed_qc = np.full(df[param].shape, False)         
             data = df[param][~failed_qc]
-
             # 2. Initialise new columns to fail
             tests = ['missing', '15', '16']#, '19', '20']
             param_test_cols = [param + '_' + x for x in tests]
@@ -197,8 +200,7 @@ class LongTerm(object):
 
             # Coalesce QC results for this parameter
             report[param + '_qc'] = report[param_test_cols].max(axis=1)
-            report_clean = report[clean_cols]
-
+        report_clean = report[clean_cols]
         return report, report_clean
 
 
