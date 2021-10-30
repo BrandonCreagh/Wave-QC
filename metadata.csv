@@ -1,0 +1,5 @@
+buoy_name,hm0_min,hm0_max,hm0_critical,hm0_roc,mdir_min,mdir_max,mdir_critical,mdir_roc,tm02_min,tm02_max,tm02_critical,tm02_roc
+finnis,0,16,True,3,0,360,False,25,0,18,False,2
+ballybunion,0,16,True,3,0,360,False,25,0,18,False,2
+splaugh,0,16,True,3,0,360,False,25,0,18,False,2
+southhunter,0,16,True,3,0,360,False,25,0,18,False,2
