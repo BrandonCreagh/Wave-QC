@@ -142,7 +142,7 @@ class LongTerm(object):
         return result
 
     @classmethod
-    def test_rate_of_change(cls, data, delta=3):
+    def test_rate_of_change(cls, data, delta=3, deg_diff=False):
         """
         LT Test 20 checks if the 1 timestep rate of change exceeds a
             threshold value, delta.
@@ -153,14 +153,42 @@ class LongTerm(object):
         - delta: the rate of change acceptable within 1 timestep. This
             should be defined considering the parameter and the frequency
             of data.
+        - deg_diff: if set to True, the difference will be calculated for
+            angles (0-360 degrees). Default value is False.
 
         Returns:
         - numpy array of 0 (rate of change less than delta) or 4 (rate
             of change greater than or equal to delta).
         """
+        def _degree_differencing(data):
+            """
+            Function to calculate the degree difference between 2 angles.
+                
+            Ex: For wave directions of 350 and 10 degrees, data.diff() would
+                return a difference of 340, whilst this function will calculate
+                a difference of 20 degrees.
+            """
+            # Copy the data series to a frame and create a column of data from the
+            #   previous timestep to compare against.
+            diff_data = data.copy().to_frame()
+            diff_data['shift'] = diff_data.shift(1)
+            # Calculate basic difference between timesteps (equivalent to data.diff())
+            diff_data['diff1'] = data - diff_data['shift']
+            # Next 2 calculations assume 1 angle is on either side of the 0/360 divide
+            diff_data['diff2'] = (data + 360) - diff_data['shift']
+            diff_data['diff3'] = data - (diff_data['shift']+ 360)
+            # Find the minimum, absolute angle between the 2 values
+            diff_data['diff'] = np.abs(diff_data[['diff1','diff2','diff3']]).min(axis=1)
+            return diff_data['diff']
+    
         # Calculate mask of data failing test, data.diff calculates the
-        #   difference between value data[i] and data[i-1].
-        fail = abs(data.diff()) >= delta
+        #   difference between value data[i] and data[i-1]
+        if not deg_diff:
+            fail = abs(data.diff()) >= delta
+        # For degrees, need to account for differences in direction that
+        #   span the 0/360 degree divide
+        else:
+            fail = _degree_differencing(data) >= delta
         # Initialise all data as passing
         result = np.full(data.shape, 0)
         # Set values which fail check to 4
@@ -278,8 +306,14 @@ class LongTerm(object):
             t20_meta = param + '_roc'
             if t20_meta in param_meta_cols:
                 delta_meta = param_meta[t20_meta]
-                report[param + '_20'][~failed_qc] = LongTerm.test_rate_of_change(
-                    data, delta_meta)
+                # Note that a different algorithm is used to calculate degree
+                #   differences to find the true angle between directions
+                if "dir" in param:
+                    report[param + '_20'][~failed_qc] = LongTerm.test_rate_of_change(
+                        data, delta_meta, deg_diff=True)
+                else:
+                    report[param + '_20'][~failed_qc] = LongTerm.test_rate_of_change(
+                        data, delta_meta)
             else:
                 print("Insufficient metadata to run test 20 on {}".format(param))
                 report[param + '_20'][~failed_qc] = 0
