@@ -194,55 +194,6 @@ class LongTerm(object):
         # Set values which fail check to 4
         result[fail] = 4
         return result
-        
-    def LT_tests(df, param):
-        """
-        Main Long Term Tests function
-        Ideally would split each test into separate function
-        """
-        N = 4
-        results = []
-        for i in range(len(df)):
-            j = 0
-            t19 = 0
-            t20 = 0
-            #test 19
-            #hm0,tm02,mdir
-            minwh = 0
-            maxwh = 30 #look for climatological ranges - east/west??
-            minwp = 0
-            maxwp = 18 #This is a guess, not sure what the largest wave period should be
-            minwd = 0.0
-            maxwd = 360
-            wvpd_max = max(df.tm02)
-            wvpd_min = min(df.tm02)
-            wvdir_max = max(df.mdir)
-            wvdir_min = min(df.mdir)
-            if df.hm0[i] < minwh or df.hm0[i] >= maxwh:
-                j = 4
-                t19 = 1
-            elif wvpd_min < minwp or wvpd_max > maxwp or wvdir_min < minwd or maxwd > 360:
-                j = 3
-                t19 = 1
-            #test 20
-            #spike test
-            #hm0
-            delta = 3
-            if i == len(df) - 1:
-                break
-            if abs(df.hm0[i] - df.hm0[i+1]) >= delta:
-                j = 4
-                t20 = 1
-
-            results.append([df.index[i], df.hm0[i], df.tm02[i], df.mdir[i],
-                            j, t15, t16, t19, t20])
-        columns = [df.index.name, "hm0", "tm02", "mdir", "flag", "test_15",
-                   "test_16", "test_19", "test_20"]
-        results_df = pd.DataFrame(results, columns=columns)
-            #results_df.to_csv('QC.csv', index=False)
-        #print(results_df)
-        results_df.set_index(df.index.name, inplace=True)
-        return results_df
 
     def run(self, df, params, station_metadata):
         """
