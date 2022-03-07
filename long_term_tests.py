@@ -13,7 +13,7 @@ import numpy as np # linear algebra
 import pandas as pd # data processing, CSV file I/O (e.g. pd.read_csv)
 pd.options.mode.chained_assignment = None  # default='warn'
 
-class LongTerm(object):
+class LongTerm():
     """Long Term QC tests Module"""
 
     def __init__(self, new_inds):
@@ -74,26 +74,56 @@ class LongTerm(object):
         return result
 
     @classmethod
-    def test_flatline(cls, data, eps=0.01):
+    def test_flatline(cls, data, sus_flat=3, fail_flat=5, eps=0.01):
         """
         LT Test 16 checks whether data is flatlining.
 
         Arguments:
         - data: series from dataframe, with data which failed
             previous QC runs masked out.
+        - sus_flat: optional integer defining the number of consequetive identical
+            records to define a suspected flatline
+        - fail_flat: optional integer defining the number of consequetive identical
+            records to justify a failure for flatlining
         - eps: optional float defining tolerance level when testing difference
             between adjacent values.
 
         Returns:
-        - result: numpy array of 0 (no flatline), 3 (3 elements in a row within
-            epsilon tolerance) or 4 (5 elements in a row within epsilon tolerance)
+        - result: numpy array of 0 (no flatline), 3 (sus_flat elements in a row within
+            epsilon tolerance) or 4 (fail_flat elements in a row within epsilon tolerance)
             which is written to the detailed QC report "param_16" column.
         """
+
+        def _test_flat(data, flat_length, eps=0.01):
+            """
+            Private function for testing flatline over n records.
+
+            Arguments:
+            - data: array of data values to search for flatlines
+            - flat_length: the number of concurrent records which would constitute a
+                flatline if they are identical
+            - eps: threshold value for values being equal
+
+            Returns:
+            - Boolean array containing "True" wherever a flatline is detected
+            """
+            # Only values of flat_length >= 2 are valid, print a warning and reset
+            #    to 2 if required
+            if flat_length < 2:
+                print("flat_length<2 is invalid; set sus_flat, fail_flat to N>1")
+                flat_length = 2
+
+            # Find cumulative difference over flat_length iterations
+            sum_flat = 0
+            for diff_size in range(1, flat_length):
+                sum_flat = sum_flat + abs(data.diff(diff_size))
+            # Return a boolean array
+            return sum_flat < eps * abs((flat_length - 1))
+
         # Calculate the absolute difference between each element in the array
-        #   and the elements 1-4 slots behind it.
-        fail = (abs(data.diff(1)) + abs(data.diff(2)) + abs(data.diff(3))
-                + abs(data.diff(4))) < 4 * eps
-        suspect = abs(data.diff(1)) + abs(data.diff(2)) < 2 * eps
+        #   and the elements fail_flat and sus_flat slots behind it.
+        fail = _test_flat(data, fail_flat, eps)
+        suspect = _test_flat(data, sus_flat, eps)
 
         # Initialise all data as passing
         result = np.full(data.shape, 0)
@@ -102,6 +132,7 @@ class LongTerm(object):
         # Where data meet fail criteria, set flag to 4
         result[fail] = 4
         return result
+
 
     @classmethod
     def test_feasible_range(cls, data, min_value, max_value, critical=False):
@@ -163,7 +194,7 @@ class LongTerm(object):
         def _degree_differencing(data):
             """
             Function to calculate the degree difference between 2 angles.
-                
+
             Ex: For wave directions of 350 and 10 degrees, data.diff() would
                 return a difference of 340, whilst this function will calculate
                 a difference of 20 degrees.
@@ -180,7 +211,7 @@ class LongTerm(object):
             # Find the minimum, absolute angle between the 2 values
             diff_data['diff'] = np.abs(diff_data[['diff1','diff2','diff3']]).min(axis=1)
             return diff_data['diff']
-    
+
         # Calculate mask of data failing test, data.diff calculates the
         #   difference between value data[i] and data[i-1]
         if not deg_diff:
@@ -204,7 +235,6 @@ class LongTerm(object):
         print("{} new records".format(len(self.new_inds)))
         # Copy data and archive flags from df
         report = df[params]
-        
 
         # For each param:
         # 1. Mask data from archive which failed QC
@@ -223,7 +253,7 @@ class LongTerm(object):
             if param + '_qc' in df.columns:
                 failed_qc = df[param+'_qc'] > 3
             else:
-                failed_qc = np.full(df[param].shape, False)         
+                failed_qc = np.full(df[param].shape, False)
             data = df[param][~failed_qc]
 
             # 2. Initialise new columns to fail
@@ -239,7 +269,21 @@ class LongTerm(object):
             report[param + '_15'][~failed_qc] = LongTerm.test_mean_stdev(data)
 
             # 2.3 test 16
-            report[param + '_16'][~failed_qc] = LongTerm.test_flatline(data)
+            t16_sus = param + '_flatsuspect'
+            t16_fail = param + '_flatfail'
+            if t16_sus in param_meta_cols:
+                sus_flat = param_meta[t16_sus]
+            else:
+                print("Using default value of 3 for suspect flatline definition")
+                sus_flat = 3
+            if t16_fail in param_meta_cols:
+                fail_flat = param_meta[t16_fail]
+            else:
+                print("Using default value of 5 for failing flatline definition")
+                fail_flat = 5
+
+            report[param + '_16'][~failed_qc] = LongTerm.test_flatline(
+                data, sus_flat=sus_flat, fail_flat=fail_flat)
 
             # 2.4 test 19
             t19_meta = [param + '_min', param + '_max', param + '_critical']
