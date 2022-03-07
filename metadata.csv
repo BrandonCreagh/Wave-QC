@@ -1,5 +1,5 @@
-buoy_name,hm0_min,hm0_max,hm0_critical,hm0_roc,mdir_min,mdir_max,mdir_critical,mdir_roc,tm02_min,tm02_max,tm02_critical,tm02_roc
-finnis,0,16,True,3,0,360,False,25,0,18,False,2
-ballybunion,0,16,True,3,0,360,False,25,0,18,False,2
-splaugh,0,16,True,3,0,360,False,25,0,18,False,2
-southhunter,0,16,True,3,0,360,False,25,0,18,False,2
+buoy_name,hm0_min,hm0_max,hm0_critical,hm0_flatsuspect,hm0_flatfail,hm0_roc,mdir_min,mdir_max,mdir_critical,mdir_flatsuspect,mdir_flatfail,mdir_roc,tm02_min,tm02_max,tm02_critical,tm02_flatsuspect,tm02_flatfail,tm02_roc
+finnis,0,16,True,4,6,3,0,360,False,3,5,25,0,18,False,4,6,2
+ballybunion,0,16,True,4,6,3,0,360,False,3,5,25,0,18,False,4,6,2
+splaugh,0,16,True,4,6,3,0,360,False,3,5,25,0,18,False,4,6,2
+southhunter,0,16,True,4,6,3,0,360,False,3,5,25,0,18,False,4,6,2
